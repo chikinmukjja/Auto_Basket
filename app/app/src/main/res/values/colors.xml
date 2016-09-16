@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#3F51B5</color>
+    <color name="colorPrimaryDark">#303F9F</color>
+    <color name="colorAccent">#FF4081</color>
+
+    <!-- 기본 색상 -->
+    <color name="white">#FFFFFF</color>
+    <color name="orangeLight">#FFF1D6</color>
+    <color name="blue">#3F51B5</color>
+    <color name="blueDark">#303F9F</color>
+    <color name="green">#1B8D3D</color>
+    <color name="greenDark">#187E37</color>
+
+    <!-- 바 색상 -->
+    <color name="barBackgroundBasic">@color/barBackgroundOrange</color>
+    <color name="barBackgroundBrown">#B97A57</color>
+    <color name="barBackgroundOrange">#FFB12E</color>
+    <color name="barBackgroundBlueLight">#D9ECFF</color>
+    <!-- 배경 색상 -->
+    <color name="backgroundBasic">@color/backgroundGrayLight</color>
+    <color name="backgroundBrown">#B97A57</color>
+    <color name="backgroundGrayLight">#F3F3F3</color>
+    <color name="backgroundOrange">#FFD12E</color>
+    <color name="backgroundGray">#4D4D4D</color>
+
+    <!-- 텍스트 색상 -->
+    <color name="textColorBasic">@color/textColorGrayDark</color>
+    <color name="textColorGray">#A4A4A4</color>
+    <color name="textColorGrayDark">#4D4D4D</color>
+    <color name="textColorOrange">#FF8105</color>
+</resources>

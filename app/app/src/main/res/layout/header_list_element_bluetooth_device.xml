@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    xmlns:sl="http://schemas.android.com/apk/res-auto"
+    android:layout_height="match_parent">
+    <com.ssomai.android.scalablelayout.ScalableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/barBackgroundBlueLight"
+        sl:scale_base_height="80"
+        sl:scale_base_width="800">
+
+        <TextView
+            android:id="@+id/header_list_element_bluetooth_device_textView_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/textColorBasic"
+            android:text="페어링된 기기"
+            android:gravity="center_vertical"
+            sl:scale_height="60"
+            sl:scale_left="20"
+            sl:scale_top="10"
+            sl:scale_width="300"
+            sl:scale_textsize="30"
+            />
+
+    </com.ssomai.android.scalablelayout.ScalableLayout>
+</LinearLayout>
