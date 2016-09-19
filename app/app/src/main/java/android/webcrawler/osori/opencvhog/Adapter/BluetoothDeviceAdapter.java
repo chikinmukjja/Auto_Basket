@@ -8,13 +8,13 @@ import android.webcrawler.osori.opencvhog.Model.BluetoothDeviceData;
 import android.webcrawler.osori.opencvhog.R;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
-
 import java.util.ArrayList;
 
 /**
  * Created by 건주 on 2016-02-28.
  * 블루투스 기기 리스트를 보여주기 위한 어댑터
  */
+
 public class BluetoothDeviceAdapter extends ArrayAdapter<BluetoothDeviceData> {
 
     public BluetoothDeviceAdapter(Context context, int resource, int textViewResourceId, ArrayList<BluetoothDeviceData> objects) {

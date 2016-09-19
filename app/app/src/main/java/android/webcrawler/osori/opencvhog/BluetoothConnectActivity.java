@@ -51,10 +51,10 @@ public class BluetoothConnectActivity extends FragmentActivity implements View.O
         ((TextView)findViewById(R.id.activity_bluetooth_connect_textView_title)).setTypeface(fontArial);
 
         /** 페어링 리스트뷰 헤더 추가 */
-        View header = getLayoutInflater().inflate(R.layout.header_list_element_bluetooth_device, null);
-        TextView headerTextView = (TextView)header.findViewById(R.id.header_list_element_bluetooth_device_textView_title);
+        View paringHeader = getLayoutInflater().inflate(R.layout.header_list_element_bluetooth_device, null);
+        TextView headerTextView = (TextView)paringHeader.findViewById(R.id.header_list_element_bluetooth_device_textView_title);
         headerTextView.setTypeface(fontArial);
-        paringDeviceListView.addHeaderView(header);
+        paringDeviceListView.addHeaderView(paringHeader);
 
         /** Discovered 리스트뷰 헤더 추가 */
         View DiscoverHeader = getLayoutInflater().inflate(R.layout.header_list_element_bluetooth_device_discovery, null);
@@ -148,6 +148,7 @@ public class BluetoothConnectActivity extends FragmentActivity implements View.O
                     btnDeviceSearch.setText("검색");
                 }else{
                     // 현재 디바이스 검색 중이 아님
+                    discoverDeviceAdapter.clear();
                     mBTAdapter.startDiscovery();
                     btnDeviceSearch.setText("중지");
                 }

@@ -33,7 +33,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     public native int calcOpticalFlow(long mPrev, long mCurr);
     public native int hogDetection(long mCurr);
 
-    private static final int TIME_INTERVAL    = 3000;       //  통신 간격
+    private static final int TIME_INTERVAL    = 3000;        //  통신 간격
     private static final int MAX_HEIGHT_SIZE  = 500;         //  높이
     private static final int MAX_WIDTH_SIZE   = 500;         //  가로
     private static final String TAG           = "KKJ_DEBUG";
