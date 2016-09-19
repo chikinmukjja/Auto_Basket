@@ -7,4 +7,5 @@ package android.webcrawler.osori.opencvhog.Common;
  */
 public class Constant {
     public static final String UUID = "927e221b-32bf-47de-959c-01d17ece7008";   // UUID 값(서버와 클라이언트가 통일 되어야 한다)
+    public static final String TAG  = "KKJ_DEBUG";
 }
