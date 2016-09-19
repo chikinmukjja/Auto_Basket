@@ -112,8 +112,8 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
+        /*
         Intent intent = getIntent();
         Bundle bundleData = intent.getBundleExtra("DATA");
         if(bundleData == null){
@@ -130,6 +130,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
          }else{
              finish();
          }
+        */
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
@@ -141,11 +142,12 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         mOpenCvCameraView.setMaxFrameSize(MAX_WIDTH_SIZE, MAX_HEIGHT_SIZE);
         mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
 
-        /** 스케쥴러 등록 */
+        /** 스케쥴러 등록
         job             = new ScheduledJob();
         jobScheduler    = new Timer();
 
         jobScheduler.scheduleAtFixedRate(job, TIME_INTERVAL, TIME_INTERVAL);
+         */
     }
 
     private class ScheduledJob extends TimerTask {
