@@ -5,8 +5,25 @@
     android:layout_height="match_parent"
     tools:context="android.webcrawler.osori.opencvhog.MainActivity">
 
-    <org.opencv.android.JavaCameraView
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:id="@+id/activity_surface_view" />
+        android:layout_height="match_parent">
+
+        <org.opencv.android.JavaCameraView
+            android:id="@+id/activity_surface_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <ToggleButton
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/toggle_btn_recording"
+            android:checked="false"
+            android:textOn=""
+            android:textOff=""
+            android:textColor="@android:color/black"
+            android:layout_gravity="center_vertical|right"
+            />
+
+    </FrameLayout>
 </RelativeLayout>
