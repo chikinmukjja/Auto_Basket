@@ -8,9 +8,12 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.WindowManager;
 import android.webcrawler.osori.opencvhog.Common.Constant;
 import android.widget.Toast;
+import android.widget.ToggleButton;
+
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
@@ -206,6 +209,9 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             }catch(IOException closeException){}
         }
         if(sendMessageThread != null){
+            sendMessageThread.sendMessage("finish");
+        }
+        if(sendMessageThread != null){
             // AsyncTask 종료
             sendMessageThread.cancel(true);
         }
@@ -248,6 +254,23 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         return frame;
     }
 
+    public void onClick(View view){
+        switch (view.getId()){
+            case R.id.toggle_btn_recording:
+                if( ((ToggleButton)view).isChecked() == true){
+                    /** 녹화 시작 */
+                    if(sendMessageThread != null){
+                        sendMessageThread.sendMessage("start");
+                    }
+                }else{
+                    /** 녹화 중지 */
+                    if(sendMessageThread != null){
+                        sendMessageThread.sendMessage("stop");
+                    }
+                }
+                break;
+        }
+    }
     /** BluetoothDevice 에 socket 연결을 시도하는 AsyncTask */
     private class ConnectedBluetoothDevice extends AsyncTask<String, Integer, Boolean>
     {
