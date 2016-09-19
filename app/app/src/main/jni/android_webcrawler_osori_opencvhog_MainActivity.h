@@ -21,7 +21,7 @@ JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_load
  * Signature: (JJJ)I
  */
 JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calcOpticalFlow
-  (JNIEnv *, jobject, jlong, jlong);
+  (JNIEnv *, jobject, jlong, jlong, jlong);
 
 /*
  * Class:     android_webcrawler_osori_opencvhog_MainActivity
@@ -29,7 +29,7 @@ JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calc
  * Signature: (J)I
  */
 JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_hogDetection
-  (JNIEnv *, jobject, jlong);
+  (JNIEnv *, jobject, jlong, jlong);
 
 #ifdef __cplusplus
 }

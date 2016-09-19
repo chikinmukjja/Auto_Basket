@@ -30,8 +30,8 @@ import java.util.UUID;
 public class MainActivity extends Activity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
     public native int loadCascade();
-    public native int calcOpticalFlow(long mPrev, long mCurr);
-    public native int hogDetection(long mCurr);
+    public native int calcOpticalFlow(long mPrev, long mCurr, long mFrame);
+    public native int hogDetection(long mCurr, long mFrame);
 
     private static final int TIME_INTERVAL    = 3000;        //  통신 간격
     private static final int MAX_HEIGHT_SIZE  = 500;         //  높이
@@ -230,8 +230,9 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         if (frame != null) {
             if (mPrev != null) {
                 int optical = calcOpticalFlow(mPrev.getNativeObjAddr(),
-                        mCurr.getNativeObjAddr());
-                int found   = hogDetection(mCurr.getNativeObjAddr());
+                        mCurr.getNativeObjAddr(), frame.getNativeObjAddr());
+                int found   = hogDetection(mCurr.getNativeObjAddr(),
+                        frame.getNativeObjAddr());
 
                 synchronized (lock) {
                     frameNum++;
