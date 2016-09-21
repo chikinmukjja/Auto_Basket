@@ -1,9 +1,7 @@
 package android.webcrawler.osori.opencvhog;
 import android.app.Activity;
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
@@ -37,8 +35,8 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     public native int hogDetection(long mCurr, long mFrame);
 
     private static final int TIME_INTERVAL    = 3000;        //  통신 간격
-    private static final int MAX_HEIGHT_SIZE  = 500;         //  높이
-    private static final int MAX_WIDTH_SIZE   = 500;         //  가로
+    private static final int MAX_HEIGHT_SIZE  = 600;         //  높이
+    private static final int MAX_WIDTH_SIZE   = 600;         //  가로
 
     private CameraBridgeViewBase mOpenCvCameraView;
     private Mat mCurr;              // 이전 이미지
@@ -49,6 +47,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     private BluetoothSocket mSocket         = null;     // 통신에 사용하는 Socket
     private OutputStream mOutputStream      = null;
     private boolean connected               = false;    // 현재 블루투스 기기와 연결되어 있는 경우 true
+    private boolean recording               = false;
 
     /** 스케쥴러로 3초마다 한번 씩 블루투스로 메시지 전송 */
     private ScheduledJob job;
@@ -56,13 +55,13 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
     /** Background thread 로 메시지를 보내는 스레드와 OpticalFlow, Hog 를 실행하는 스레드 */
     private SendMessageThread sendMessageThread = null;
+    private OpenCVThread      openCVThread      = null;
 
     /** */
     private Object lock = new Object();             // Lock 변수
     private int opticalSum    = 0;                  // 3초동안 Optical Flow 합
     private int foundSum      = 0;                  // 3초동안 Detect한 사람 수 합
     private int frameNum      = 0;                  // Frame 수
-    public static  Queue<String> MessageQueue;      // Message Queue
 
     static {
         System.loadLibrary("opencv_java");
@@ -77,6 +76,8 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                     Log.i(Constant.TAG, "OpenCV loaded successfully");
                     System.loadLibrary("opticalFlow");// Load Native module
                     load_cascade();
+                    openCVThread = new OpenCVThread();
+                    openCVThread.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
                     mOpenCvCameraView.enableView();
                 } break;
                 default:
@@ -134,7 +135,6 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
              finish();
          }
         */
-
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
         mOpenCvCameraView = (CameraBridgeViewBase)
@@ -145,17 +145,18 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         mOpenCvCameraView.setMaxFrameSize(MAX_WIDTH_SIZE, MAX_HEIGHT_SIZE);
         mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
 
-        /** 스케쥴러 등록
+
         job             = new ScheduledJob();
         jobScheduler    = new Timer();
 
         jobScheduler.scheduleAtFixedRate(job, TIME_INTERVAL, TIME_INTERVAL);
-         */
     }
 
     private class ScheduledJob extends TimerTask {
 
         public void run() {
+            if(recording == false)  return;
+
             double foundAverage     = 0.0;
             double opticalAverage   = 0.0;
 
@@ -172,6 +173,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                 Log.d(Constant.TAG, "optical : " + opticalAverage + "found" + foundAverage);
                 sendMessageThread.sendMessage("" + opticalAverage + " " + foundAverage);
              }
+
         }
     }
 
@@ -209,10 +211,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             }catch(IOException closeException){}
         }
         if(sendMessageThread != null){
-            sendMessageThread.sendMessage("finish");
-        }
-        if(sendMessageThread != null){
-            // AsyncTask 종료
+            sendMessageThread.sendMessage("Exit");
             sendMessageThread.cancel(true);
         }
         if(jobScheduler != null){
@@ -233,20 +232,24 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
         Mat frame = inputFrame.rgba();
+
+        if(recording == false) {
+            if(mPrev != null)   mPrev.release();
+            mPrev = null;
+            return frame;
+        }
+
         mCurr =  inputFrame.gray();
 
         if (frame != null) {
             if (mPrev != null) {
-                int optical = calcOpticalFlow(mPrev.getNativeObjAddr(),
-                        mCurr.getNativeObjAddr(), frame.getNativeObjAddr());
-                int found   = hogDetection(mCurr.getNativeObjAddr(),
-                        frame.getNativeObjAddr());
+                Mat prev = new Mat(mPrev.rows(), mPrev.cols(), mPrev.type());
+                Mat curr = new Mat(mCurr.rows(), mCurr.cols(), mCurr.type());
 
-                synchronized (lock) {
-                    frameNum++;
-                    opticalSum  += optical;
-                    foundSum    += found;
-                }
+                mPrev.copyTo(prev);
+                mCurr.copyTo(curr);
+
+                openCVThread.calculateOpticalFlow(prev, curr);
             }
             if (mPrev != null) mPrev.release();
             mPrev = mCurr;
@@ -260,13 +263,15 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                 if( ((ToggleButton)view).isChecked() == true){
                     /** 녹화 시작 */
                     if(sendMessageThread != null){
-                        sendMessageThread.sendMessage("start");
+                        sendMessageThread.sendMessage("Start");
                     }
+                    recording = true;
                 }else{
                     /** 녹화 중지 */
                     if(sendMessageThread != null){
-                        sendMessageThread.sendMessage("stop");
+                        sendMessageThread.sendMessage("Stop");
                     }
+                    recording = false;
                 }
                 break;
         }
@@ -347,6 +352,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     private class SendMessageThread extends AsyncTask<String, Integer, Boolean>{
 
         private Object messageLock;
+        private  Queue<String> MessageQueue;      // Message Queue
 
         @Override
         protected void onPreExecute() {
@@ -392,6 +398,75 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                 }
             }
         }
+    }
+
+    /** 영상처리 관련  사용하는 AsyncTask */
+    private class OpenCVThread extends AsyncTask<String, Integer, Boolean>{
+
+        private Object      matLock;
+        private Queue<Mat>  matQueue;
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            matQueue    = new LinkedList<>();
+            matLock     = new Object();
+        }
+
+        @Override
+        protected Boolean doInBackground(String... params) {
+            while (true) {
+                if(isCancelled() == true){
+                    // AsyncTask 종료
+                    break;
+                }
+                if(!matQueue.isEmpty()) {
+                    Mat prev;
+                    Mat curr;
+                    synchronized (matLock) {
+                        prev = matQueue.poll();
+                        curr = matQueue.poll();
+                    }
+
+                    int optical = calcOpticalFlow(prev.getNativeObjAddr(),
+                            curr.getNativeObjAddr(), curr.getNativeObjAddr());
+                    int found   = hogDetection(curr.getNativeObjAddr(),
+                            curr.getNativeObjAddr());
+
+                    synchronized (lock) {
+                        frameNum++;
+                        opticalSum  += optical;
+                        foundSum    += found;
+                    }
+
+                    prev.release();
+                    curr.release();
+
+                    Log.d(Constant.TAG, "Optical Flow : " + optical + ", " + found);
+                }
+            }
+            return true;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean aBoolean) {
+            super.onPostExecute(aBoolean);
+            // nothing to do
+        }
+
+        public void calculateOpticalFlow(Mat prev, Mat curr){
+            if(prev != null && curr != null) {
+                synchronized (matLock) {
+                    if(matQueue.isEmpty() == true) {
+                        matQueue.offer(prev);
+                        matQueue.offer(curr);
+                    }else{
+                        prev.release();
+                        curr.release();
+                    }
+                }
+            }
+        }
+
     }
 
  }
