@@ -12,8 +12,8 @@ extern "C" {
  * Method:    convertNativeGray
  * Signature: (JJ)I
  */
-JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_loadCascade
-  (JNIEnv *, jobject);
+JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_init
+  (JNIEnv *, jobject, jlong, jlong);
 
 /*
  * Class:     android_webcrawler_osori_opencvhog_MainActivity

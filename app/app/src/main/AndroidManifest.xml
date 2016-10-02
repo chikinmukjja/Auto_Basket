@@ -36,6 +36,7 @@
             >
         </activity>
 
+        <!-- Main Activity -->
         <activity android:name=".MainActivity"
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"

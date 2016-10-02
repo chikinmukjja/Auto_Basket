@@ -1,7 +1,9 @@
 package android.webcrawler.osori.opencvhog;
 import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
@@ -17,6 +19,8 @@ import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Mat;
+import org.opencv.core.Rect;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -30,13 +34,13 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
-    public native int loadCascade();
+    public native int init(long frameHeight, long frameWidth);
     public native int calcOpticalFlow(long mPrev, long mCurr, long mFrame);
     public native int hogDetection(long mCurr, long mFrame);
 
     private static final int TIME_INTERVAL    = 3000;        //  통신 간격
-    private static final int MAX_HEIGHT_SIZE  = 600;         //  높이
-    private static final int MAX_WIDTH_SIZE   = 600;         //  가로
+    private static final int MAX_HEIGHT_SIZE  = 400;         //  높이
+    private static final int MAX_WIDTH_SIZE   = 500;         //  가로
 
     private CameraBridgeViewBase mOpenCvCameraView;
     private Mat mCurr;              // 이전 이미지
@@ -106,7 +110,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             }
             is.close();
             os.close();
-            loadCascade();
+            init(MAX_HEIGHT_SIZE, MAX_WIDTH_SIZE);
         } catch (IOException e) {
             e.printStackTrace();
             Log.d(Constant.TAG, "Failed to load cascade. Exception thrown: " + e);
@@ -135,6 +139,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
              finish();
          }
         */
+
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
         mOpenCvCameraView = (CameraBridgeViewBase)
@@ -183,6 +188,9 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         super.onPause();
         if (mOpenCvCameraView != null)
             mOpenCvCameraView.disableView();
+        if(sendMessageThread != null){
+            sendMessageThread.sendMessage("exit");
+        }
     }
 
     @Override
@@ -211,7 +219,6 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             }catch(IOException closeException){}
         }
         if(sendMessageThread != null){
-            sendMessageThread.sendMessage("Exit");
             sendMessageThread.cancel(true);
         }
         if(jobScheduler != null){
@@ -238,22 +245,36 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             mPrev = null;
             return frame;
         }
-
         mCurr =  inputFrame.gray();
 
-        if (frame != null) {
-            if (mPrev != null) {
-                Mat prev = new Mat(mPrev.rows(), mPrev.cols(), mPrev.type());
-                Mat curr = new Mat(mCurr.rows(), mCurr.cols(), mCurr.type());
+        /*
+        if (mPrev != null && openCVThread.isReady()) {
+            Mat prev = new Mat(mPrev.rows(), mPrev.cols(), mPrev.type());
+            Mat curr = new Mat(mCurr.rows(), mCurr.cols(), mCurr.type());
 
-                mPrev.copyTo(prev);
-                mCurr.copyTo(curr);
+            mPrev.copyTo(prev);
+            mCurr.copyTo(curr);
 
-                openCVThread.calculateOpticalFlow(prev, curr);
+            openCVThread.addMatToQueue(prev, curr);
+        }*/
+
+        if(mPrev != null){
+            for(int i=0; i<4; ++i) {
+                Rect rect = new Rect(mPrev.width() / 4, 0 , mPrev.width() / 4, mPrev.height());
+
+                Mat smallPrev = new Mat(mPrev, rect);
+                Mat smallCurr = new Mat(mCurr, rect);
+
+                calcOpticalFlow(smallPrev.getNativeObjAddr(),
+                        smallCurr.getNativeObjAddr(), frame.getNativeObjAddr());
+                hogDetection(smallCurr.getNativeObjAddr(),
+                        frame.getNativeObjAddr());
             }
-            if (mPrev != null) mPrev.release();
-            mPrev = mCurr;
         }
+
+        if (mPrev != null) mPrev.release();
+        mPrev = mCurr;
+
         return frame;
     }
 
@@ -263,13 +284,13 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                 if( ((ToggleButton)view).isChecked() == true){
                     /** 녹화 시작 */
                     if(sendMessageThread != null){
-                        sendMessageThread.sendMessage("Start");
+                        sendMessageThread.sendMessage("start");
                     }
                     recording = true;
                 }else{
                     /** 녹화 중지 */
                     if(sendMessageThread != null){
-                        sendMessageThread.sendMessage("Stop");
+                        sendMessageThread.sendMessage("stop");
                     }
                     recording = false;
                 }
@@ -306,7 +327,8 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                         mSocket.connect();
                     }catch(IOException connectException){
                         try{
-                            mSocket = (BluetoothSocket)mDevice.getClass().getMethod("createRfcommSocket", new Class[] {int.class}).invoke(mDevice, 1);
+                            mSocket = (BluetoothSocket)mDevice.getClass().getMethod("createRfcommSocket"
+                                    , new Class[] {int.class}).invoke(mDevice, 1);
                             mSocket.connect();
                         }catch(Exception exception){
                             Log.e(Constant.TAG, "BluetoothSocket connection Exception");
@@ -378,7 +400,6 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                         if (mOutputStream != null) {
                             mOutputStream.write(bytes);
                         }
-                        Log.d(Constant.TAG, "sendMessage : " + mSendMessage);
                     } catch (Exception e) {}
                 }
             }
@@ -437,11 +458,9 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                         opticalSum  += optical;
                         foundSum    += found;
                     }
-
+                    Log.d(Constant.TAG, "Opt : " + optical + ", Found : " + found);
                     prev.release();
                     curr.release();
-
-                    Log.d(Constant.TAG, "Optical Flow : " + optical + ", " + found);
                 }
             }
             return true;
@@ -453,7 +472,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             // nothing to do
         }
 
-        public void calculateOpticalFlow(Mat prev, Mat curr){
+        public void addMatToQueue(Mat prev, Mat curr){
             if(prev != null && curr != null) {
                 synchronized (matLock) {
                     if(matQueue.isEmpty() == true) {
@@ -465,6 +484,14 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                     }
                 }
             }
+        }
+
+        public boolean isReady(){
+            boolean result;
+            synchronized (matLock){
+                result = matQueue.isEmpty();
+            }
+            return result;
         }
 
     }
