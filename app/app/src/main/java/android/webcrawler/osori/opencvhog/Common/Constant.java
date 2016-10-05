@@ -8,4 +8,10 @@ package android.webcrawler.osori.opencvhog.Common;
 public class Constant {
     public static final String UUID = "927e221b-32bf-47de-959c-01d17ece7008";   // UUID 값(서버와 클라이언트가 통일 되어야 한다)
     public static final String TAG  = "KKJ_DEBUG";
+
+    public static final int TIME_INTERVAL    = 3000;        //  통신 간격
+    public static final int MAX_HEIGHT_SIZE  = 400;         //  높이
+    public static final int MAX_WIDTH_SIZE   = 500;         //  가로
+
+    public static final int DIVIDE           = 4;           //  화면 분할 개수
 }

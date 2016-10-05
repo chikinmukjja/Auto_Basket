@@ -1,9 +1,7 @@
 package android.webcrawler.osori.opencvhog;
 import android.app.Activity;
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
@@ -13,14 +11,12 @@ import android.view.WindowManager;
 import android.webcrawler.osori.opencvhog.Common.Constant;
 import android.widget.Toast;
 import android.widget.ToggleButton;
-
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -37,10 +33,6 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     public native int init(long frameHeight, long frameWidth);
     public native int calcOpticalFlow(long mPrev, long mCurr, long mFrame);
     public native int hogDetection(long mCurr, long mFrame);
-
-    private static final int TIME_INTERVAL    = 3000;        //  통신 간격
-    private static final int MAX_HEIGHT_SIZE  = 400;         //  높이
-    private static final int MAX_WIDTH_SIZE   = 500;         //  가로
 
     private CameraBridgeViewBase mOpenCvCameraView;
     private Mat mCurr;              // 이전 이미지
@@ -62,10 +54,10 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     private OpenCVThread      openCVThread      = null;
 
     /** */
-    private Object lock = new Object();             // Lock 변수
-    private int opticalSum    = 0;                  // 3초동안 Optical Flow 합
-    private int foundSum      = 0;                  // 3초동안 Detect한 사람 수 합
-    private int frameNum      = 0;                  // Frame 수
+    private Object lock = new Object();                     // Lock 변수
+    private int[] opticalSum  = new int[Constant.DIVIDE];   // 3초동안 Optical Flow 합
+    private int[] foundSum    = new int[Constant.DIVIDE];   // 3초동안 Detect한 사람 수 합
+    private int frameCount    = 0;                          // Frame 수
 
     static {
         System.loadLibrary("opencv_java");
@@ -110,7 +102,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             }
             is.close();
             os.close();
-            init(MAX_HEIGHT_SIZE, MAX_WIDTH_SIZE);
+            init(Constant.MAX_HEIGHT_SIZE, Constant.MAX_WIDTH_SIZE);
         } catch (IOException e) {
             e.printStackTrace();
             Log.d(Constant.TAG, "Failed to load cascade. Exception thrown: " + e);
@@ -147,14 +139,14 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
-        mOpenCvCameraView.setMaxFrameSize(MAX_WIDTH_SIZE, MAX_HEIGHT_SIZE);
+        mOpenCvCameraView.setMaxFrameSize(Constant.MAX_WIDTH_SIZE, Constant. MAX_HEIGHT_SIZE);
         mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
 
 
         job             = new ScheduledJob();
         jobScheduler    = new Timer();
 
-        jobScheduler.scheduleAtFixedRate(job, TIME_INTERVAL, TIME_INTERVAL);
+        jobScheduler.scheduleAtFixedRate(job, Constant.TIME_INTERVAL, Constant.TIME_INTERVAL);
     }
 
     private class ScheduledJob extends TimerTask {
@@ -162,22 +154,30 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         public void run() {
             if(recording == false)  return;
 
-            double foundAverage     = 0.0;
-            double opticalAverage   = 0.0;
+            double foundAverage[]   = new double[Constant.DIVIDE];
+            double opticalAverage[] = new double[Constant.DIVIDE];
 
             synchronized (lock){
-                if(frameNum != 0) {
-                    foundAverage = foundSum / (double) frameNum;
-                    opticalAverage = opticalSum / (double) frameNum;
+                if(frameCount != 0) {
+                    for(int i=0; i < Constant.DIVIDE; ++i) {
+                        foundAverage[i]     = foundSum[i] / (double)frameCount;
+                        opticalAverage[i]   = opticalSum[i] / (double)frameCount;
+                    }
                 }
-                foundSum    = 0;
-                frameNum    = 0;
-                opticalSum  = 0;
+
+                /** 변수 초기화 */
+                frameCount  = 0;
+                for(int i=0; i < Constant.DIVIDE; ++i) {
+                    foundSum[i]     = 0;
+                    opticalSum[i]   = 0;
+                }
             }
+
+            Log.d(Constant.TAG, "1:" + opticalAverage[0] + " 2:" + opticalAverage[1] + " 3:" + opticalAverage[2]
+                    + " 4:" + opticalAverage[3]);
             if(connected == true && sendMessageThread != null){
-                Log.d(Constant.TAG, "optical : " + opticalAverage + "found" + foundAverage);
-                sendMessageThread.sendMessage("" + opticalAverage + " " + foundAverage);
-             }
+                /** 블루투스로 Message 전송 */
+            }
 
         }
     }
@@ -247,7 +247,6 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         }
         mCurr =  inputFrame.gray();
 
-        /*
         if (mPrev != null && openCVThread.isReady()) {
             Mat prev = new Mat(mPrev.rows(), mPrev.cols(), mPrev.type());
             Mat curr = new Mat(mCurr.rows(), mCurr.cols(), mCurr.type());
@@ -256,20 +255,6 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             mCurr.copyTo(curr);
 
             openCVThread.addMatToQueue(prev, curr);
-        }*/
-
-        if(mPrev != null){
-            for(int i=0; i<4; ++i) {
-                Rect rect = new Rect(mPrev.width() / 4, 0 , mPrev.width() / 4, mPrev.height());
-
-                Mat smallPrev = new Mat(mPrev, rect);
-                Mat smallCurr = new Mat(mCurr, rect);
-
-                calcOpticalFlow(smallPrev.getNativeObjAddr(),
-                        smallCurr.getNativeObjAddr(), frame.getNativeObjAddr());
-                hogDetection(smallCurr.getNativeObjAddr(),
-                        frame.getNativeObjAddr());
-            }
         }
 
         if (mPrev != null) mPrev.release();
@@ -426,11 +411,18 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
         private Object      matLock;
         private Queue<Mat>  matQueue;
+
+        private int[] opticalValueArray;
+        private int[] foundValueArray;
+
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
             matQueue    = new LinkedList<>();
             matLock     = new Object();
+
+            opticalValueArray   = new int[Constant.DIVIDE];
+            foundValueArray     = new int[Constant.DIVIDE];
         }
 
         @Override
@@ -448,17 +440,28 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                         curr = matQueue.poll();
                     }
 
-                    int optical = calcOpticalFlow(prev.getNativeObjAddr(),
-                            curr.getNativeObjAddr(), curr.getNativeObjAddr());
-                    int found   = hogDetection(curr.getNativeObjAddr(),
-                            curr.getNativeObjAddr());
+                    for(int i=0; i<Constant.DIVIDE; ++i) {
+                        Rect rect = new Rect((prev.width() / Constant.DIVIDE) * i,  0, prev.width() / Constant.DIVIDE, prev.height());
+
+                        Mat smallPrev = new Mat(prev, rect);
+                        Mat smallCurr = new Mat(curr, rect);
+
+                        opticalValueArray[i] = calcOpticalFlow(smallPrev.getNativeObjAddr(),
+                                smallCurr.getNativeObjAddr(), curr.getNativeObjAddr());
+                        foundValueArray[i]   = hogDetection(smallCurr.getNativeObjAddr(),
+                                curr.getNativeObjAddr());
+
+                        smallPrev.release();
+                        smallCurr.release();
+                    }
 
                     synchronized (lock) {
-                        frameNum++;
-                        opticalSum  += optical;
-                        foundSum    += found;
+                        frameCount++;
+                        for(int i=0; i<Constant.DIVIDE; ++i) {
+                            opticalSum[i] += opticalValueArray[i];
+                            foundSum[i]   += foundValueArray[i];
+                        }
                     }
-                    Log.d(Constant.TAG, "Opt : " + optical + ", Found : " + found);
                     prev.release();
                     curr.release();
                 }
