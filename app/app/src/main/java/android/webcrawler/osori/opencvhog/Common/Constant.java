@@ -13,5 +13,5 @@ public class Constant {
     public static final int MAX_WIDTH_SIZE   = 500;         //  가로
 
     public static final int DIVIDE           = 4;           //  화면 분할 개수
-    public static final int MAX_FRAME_NUMBER      = 170;         //  Frame 수(1~170)
+    public static final int MAX_FRAME_NUMBER = 170;         //  Frame 수(1~170)
 }

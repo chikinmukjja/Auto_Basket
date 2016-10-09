@@ -28,16 +28,17 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
-    public native int init(long frameHeight, long frameWidth);
+    public native int init();
     public native String calcOpticalFlow(long mPrev, long mCurr, long mFrame);
     public native int hogDetection(long mCurr, long mFrame);
 
+    /** 카메라와 관련된 변수들 */
     private CameraBridgeViewBase mOpenCvCameraView;
-    private Mat mCurr;              // 이전 이미지
-    private Mat mPrev   = null;     // 이후 이미지
+    private Mat mCurr;                                      // 이전 이미지
+    private Mat mPrev   = null;                             // 이후 이미지
     private int frameNumber    = 0;                         // Frame 수
 
-    /** 블루투스 통신과 관련된 변수 */
+    /** 블루투스 통신과 관련된 변수들 */
     private String mAddress;
     private BluetoothSocket mSocket         = null;     // 통신에 사용하는 Socket
     private OutputStream mOutputStream      = null;
@@ -91,7 +92,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             }
             is.close();
             os.close();
-            init(Constant.MAX_HEIGHT_SIZE, Constant.MAX_WIDTH_SIZE);
+            init();
         } catch (IOException e) {
             e.printStackTrace();
             Log.d(Constant.TAG, "Failed to load cascade. Exception thrown: " + e);
@@ -186,12 +187,10 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
         frameNumber  = (frameNumber % Constant.MAX_FRAME_NUMBER) + 1;
-        Mat frame = inputFrame.rgba();
-
         if(recording == false) {
             if(mPrev != null)   mPrev.release();
             mPrev = null;
-            return frame;
+            return inputFrame.rgba();
         }
         mCurr =  inputFrame.gray();
 
@@ -208,7 +207,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         if (mPrev != null) mPrev.release();
         mPrev = mCurr;
 
-        return frame;
+        return inputFrame.rgba();
     }
 
     public void onClick(View view){
@@ -382,38 +381,42 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                     // AsyncTask 종료
                     break;
                 }
-                if(!matQueue.isEmpty() && !intQueue.isEmpty()) {
+                if (!matQueue.isEmpty() && !intQueue.isEmpty()) {
                     Mat prev;
                     Mat curr;
                     int frameNumber;
+                    String message;
 
                     synchronized (mLock) {
-                        prev        = matQueue.poll();
-                        curr        = matQueue.poll();
+                        prev = matQueue.poll();
+                        curr = matQueue.poll();
                         frameNumber = intQueue.poll();
-                   }
+                    }
+                    message = "" + frameNumber;
 
-                    for(int i=0; i<Constant.DIVIDE; ++i) {
-                        Rect rect = new Rect((prev.width() / Constant.DIVIDE) * i,  0, prev.width() / Constant.DIVIDE, prev.height());
+                    for (int i = 0; i < Constant.DIVIDE; ++i) {
+                        Rect rect = new Rect((prev.width() / Constant.DIVIDE) * i, 0, prev.width() / Constant.DIVIDE, prev.height());
 
                         Mat smallPrev = new Mat(prev, rect);
                         Mat smallCurr = new Mat(curr, rect);
 
-                        opticalValueArray[i] = calcOpticalFlow(smallPrev.getNativeObjAddr(),
+                        String opticalValue = calcOpticalFlow(smallPrev.getNativeObjAddr(),
                                 smallCurr.getNativeObjAddr(), curr.getNativeObjAddr());
-                        foundValueArray[i]   = hogDetection(smallCurr.getNativeObjAddr(),
+
+                        foundValueArray[i] = hogDetection(smallCurr.getNativeObjAddr(),
                                 curr.getNativeObjAddr());
 
+                        message += "/" + foundValueArray[i] + "/" + opticalValue;
                         smallPrev.release();
                         smallCurr.release();
                     }
                     prev.release();
                     curr.release();
-                    Log.d(Constant.TAG, "Frame number : " + frameNumber + ", Optical 1 : " + opticalValueArray[0]
-                    + ", Found 1 : " + foundValueArray[0]);
 
-                    if(connected && sendMessageThread != null){
+                    Log.d(Constant.TAG, message);
+                    if (connected && sendMessageThread != null) {
                         /** 메시지 전송 */
+                        sendMessageThread.sendMessage(message);
                     }
                 }
             }

@@ -5,11 +5,15 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <opencv2/objdetect/objdetect.hpp>
+#include <main.h>
+#include <stdlib.h>
 
 using namespace std;
 using namespace cv;
 
 const int MAX_CORNERS = 50;
+const double cos45   = 0.52532198881;
+const double sin45   = 0.85090352453;
 
 /* Cascade 관련 변수들 */
 CascadeClassifier cascade;
@@ -17,16 +21,14 @@ bool loaded = false;
 
 /* 화면 분할 관련 변수들 */
 
-int absoluteValue(int x);
 void goodFeaturesToTrack_Demo(Mat& prevImage, vector<Point2f>& prevPoints);
 
 extern "C" {
-
-JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_init(JNIEnv*, jobject, jlong, jlong);
-JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calcOpticalFlow(JNIEnv *, jobject, jlong, jlong, jlong);
+JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_init(JNIEnv *, jobject);
+JNIEXPORT jstring JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calcOpticalFlow(JNIEnv *env, jobject obj, jlong, jlong, jlong);
 JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_hogDetection(JNIEnv *, jobject, jlong, jlong);
 
-JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_init(JNIEnv*, jobject, jlong h, jlong w) {
+JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_init(JNIEnv *, jobject){
 
     loaded = cascade.load("/sdcard/hogcascade_pedestrians.xml" );
 
@@ -38,13 +40,17 @@ JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_init
 
 }
 
-JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calcOpticalFlow(JNIEnv *, jobject, jlong prev, jlong curr, jlong frame)
+JNIEXPORT jstring JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calcOpticalFlow(JNIEnv *env, jobject obj,
+                                                                                               jlong prev, jlong curr, jlong frame)
 {
     Mat& prevImage   = *(Mat*)prev;
     Mat& currImage   = *(Mat*)curr;
     Mat& frameImage  = *(Mat*)frame;
 
-    int average = 0;
+    int sumX = 0;
+    int sumY = 0;
+    int diagonal1 = 0;
+    int diagonal2 = 0;
 
     vector<uchar>   status(MAX_CORNERS);
     vector<float>  error(MAX_CORNERS);
@@ -53,8 +59,8 @@ JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calc
 
     goodFeaturesToTrack_Demo(prevImage, prevPoints);
 
-    if (prevPoints.size() < 5)
-        return 0;
+    if (prevPoints.size() < 3)
+        return env->NewStringUTF("/0/0/0/0");
 
     Size winSize(20, 20);							// 윈도우 size
     int max_level = 3;								// pyramid max level
@@ -80,16 +86,24 @@ JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calc
             p1.y = (int) currPoints[i].y;
             p2.x = (int) prevPoints[i].x;
             p2.y = (int) prevPoints[i].y;
-            int lengthX = absoluteValue(p1.x - p2.x);
-            int lengthY = absoluteValue(p1.y - p2.y);
-            if(lengthY < lengthX && lengthX > minX){
-                average += p2.x - p1.x;
-                line(frameImage, p1, p2, CV_RGB(0, 255, 0));
-            }
+
+            sumX        += p2.x - p1.x;
+            sumY        += p2.y - p1.y;
+            diagonal1   += (cos45*(double)(p2.x) + sin45*(double)(p2.y)) - (cos45*(double)(p1.x) + sin45*(double)(p1.y));
+            diagonal2   += (-sin45*(double)(p2.x) + cos45*(double)(p2.y)) - (-sin45*(double)(p1.x) + cos45*(double)(p1.y));
+            // line(frameImage, p1, p2, CV_RGB(0, 255, 0));
         }
     }
 
-    return average;
+    char msg[1000];
+    int len = 0;
+
+    len =  sprintf(msg + len, "%d/", sumX);
+    len += sprintf(msg + len, "%d/", sumY);
+    len += sprintf(msg + len, "%d/", diagonal1);
+    len += sprintf(msg + len, "%d", diagonal2);
+
+    return env->NewStringUTF(msg);
 }
 
 JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_hogDetection(JNIEnv *, jobject, jlong curr, jlong frame)
@@ -107,21 +121,16 @@ JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_hogD
         cascade.detectMultiScale(currImage, found, scale_step, minNeighbors, 0, min_obj_sz, max_obj_sz);
     }
 
+    /*
     for(int i=0; i<(int)found.size(); i++)
         rectangle(frameImage, found[i], Scalar(0,255,0), 2);
+    */
 
     return (jint)found.size();
 }
 
 }   // extern "C"
 
-
-int absoluteValue(int x){
-    if(x >= 0)
-        return x;
-    else
-        return -x;
-}
 
 void goodFeaturesToTrack_Demo(Mat& prevImage, vector<Point2f>& prevPoints)
 {

@@ -13,14 +13,14 @@ extern "C" {
  * Signature: (JJ)I
  */
 JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_init
-  (JNIEnv *, jobject, jlong, jlong);
+  (JNIEnv *, jobject);
 
 /*
  * Class:     android_webcrawler_osori_opencvhog_MainActivity
  * Method:    calcOpticalFlow
  * Signature: (JJJ)I
  */
-JNIEXPORT jint JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calcOpticalFlow
+JNIEXPORT jstring JNICALL Java_android_webcrawler_osori_opencvhog_MainActivity_calcOpticalFlow
   (JNIEnv *, jobject, jlong, jlong, jlong);
 
 /*
