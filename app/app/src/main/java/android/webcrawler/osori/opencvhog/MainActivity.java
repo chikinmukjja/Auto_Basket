@@ -24,19 +24,18 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.UUID;
 
 public class MainActivity extends Activity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
     public native int init(long frameHeight, long frameWidth);
-    public native int calcOpticalFlow(long mPrev, long mCurr, long mFrame);
+    public native String calcOpticalFlow(long mPrev, long mCurr, long mFrame);
     public native int hogDetection(long mCurr, long mFrame);
 
     private CameraBridgeViewBase mOpenCvCameraView;
     private Mat mCurr;              // 이전 이미지
     private Mat mPrev   = null;     // 이후 이미지
+    private int frameNumber    = 0;                         // Frame 수
 
     /** 블루투스 통신과 관련된 변수 */
     private String mAddress;
@@ -45,19 +44,9 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     private boolean connected               = false;    // 현재 블루투스 기기와 연결되어 있는 경우 true
     private boolean recording               = false;
 
-    /** 스케쥴러로 3초마다 한번 씩 블루투스로 메시지 전송 */
-    private ScheduledJob job;
-    private Timer jobScheduler;
-
     /** Background thread 로 메시지를 보내는 스레드와 OpticalFlow, Hog 를 실행하는 스레드 */
     private SendMessageThread sendMessageThread = null;
     private OpenCVThread      openCVThread      = null;
-
-    /** */
-    private Object lock = new Object();                     // Lock 변수
-    private int[] opticalSum  = new int[Constant.DIVIDE];   // 3초동안 Optical Flow 합
-    private int[] foundSum    = new int[Constant.DIVIDE];   // 3초동안 Detect한 사람 수 합
-    private int frameCount    = 0;                          // Frame 수
 
     static {
         System.loadLibrary("opencv_java");
@@ -139,47 +128,8 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
-        mOpenCvCameraView.setMaxFrameSize(Constant.MAX_WIDTH_SIZE, Constant. MAX_HEIGHT_SIZE);
+        mOpenCvCameraView.setMaxFrameSize(Constant.MAX_WIDTH_SIZE, Constant.MAX_HEIGHT_SIZE);
         mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
-
-
-        job             = new ScheduledJob();
-        jobScheduler    = new Timer();
-
-        jobScheduler.scheduleAtFixedRate(job, Constant.TIME_INTERVAL, Constant.TIME_INTERVAL);
-    }
-
-    private class ScheduledJob extends TimerTask {
-
-        public void run() {
-            if(recording == false)  return;
-
-            double foundAverage[]   = new double[Constant.DIVIDE];
-            double opticalAverage[] = new double[Constant.DIVIDE];
-
-            synchronized (lock){
-                if(frameCount != 0) {
-                    for(int i=0; i < Constant.DIVIDE; ++i) {
-                        foundAverage[i]     = foundSum[i] / (double)frameCount;
-                        opticalAverage[i]   = opticalSum[i] / (double)frameCount;
-                    }
-                }
-
-                /** 변수 초기화 */
-                frameCount  = 0;
-                for(int i=0; i < Constant.DIVIDE; ++i) {
-                    foundSum[i]     = 0;
-                    opticalSum[i]   = 0;
-                }
-            }
-
-            Log.d(Constant.TAG, "1:" + opticalAverage[0] + " 2:" + opticalAverage[1] + " 3:" + opticalAverage[2]
-                    + " 4:" + opticalAverage[3]);
-            if(connected == true && sendMessageThread != null){
-                /** 블루투스로 Message 전송 */
-            }
-
-        }
     }
 
     @Override
@@ -221,9 +171,6 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         if(sendMessageThread != null){
             sendMessageThread.cancel(true);
         }
-        if(jobScheduler != null){
-            jobScheduler.cancel();
-        }
     }
 
     @Override
@@ -238,6 +185,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+        frameNumber  = (frameNumber % Constant.MAX_FRAME_NUMBER) + 1;
         Mat frame = inputFrame.rgba();
 
         if(recording == false) {
@@ -254,7 +202,7 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             mPrev.copyTo(prev);
             mCurr.copyTo(curr);
 
-            openCVThread.addMatToQueue(prev, curr);
+            openCVThread.addMatToQueue(prev, curr, frameNumber);
         }
 
         if (mPrev != null) mPrev.release();
@@ -409,8 +357,9 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
     /** 영상처리 관련  사용하는 AsyncTask */
     private class OpenCVThread extends AsyncTask<String, Integer, Boolean>{
 
-        private Object      matLock;
-        private Queue<Mat>  matQueue;
+        private Object          mLock;
+        private Queue<Mat>      matQueue;
+        private Queue<Integer>  intQueue;
 
         private int[] opticalValueArray;
         private int[] foundValueArray;
@@ -418,8 +367,9 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
+            mLock       = new Object();
             matQueue    = new LinkedList<>();
-            matLock     = new Object();
+            intQueue    = new LinkedList<>();
 
             opticalValueArray   = new int[Constant.DIVIDE];
             foundValueArray     = new int[Constant.DIVIDE];
@@ -432,13 +382,16 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                     // AsyncTask 종료
                     break;
                 }
-                if(!matQueue.isEmpty()) {
+                if(!matQueue.isEmpty() && !intQueue.isEmpty()) {
                     Mat prev;
                     Mat curr;
-                    synchronized (matLock) {
-                        prev = matQueue.poll();
-                        curr = matQueue.poll();
-                    }
+                    int frameNumber;
+
+                    synchronized (mLock) {
+                        prev        = matQueue.poll();
+                        curr        = matQueue.poll();
+                        frameNumber = intQueue.poll();
+                   }
 
                     for(int i=0; i<Constant.DIVIDE; ++i) {
                         Rect rect = new Rect((prev.width() / Constant.DIVIDE) * i,  0, prev.width() / Constant.DIVIDE, prev.height());
@@ -454,16 +407,14 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
                         smallPrev.release();
                         smallCurr.release();
                     }
-
-                    synchronized (lock) {
-                        frameCount++;
-                        for(int i=0; i<Constant.DIVIDE; ++i) {
-                            opticalSum[i] += opticalValueArray[i];
-                            foundSum[i]   += foundValueArray[i];
-                        }
-                    }
                     prev.release();
                     curr.release();
+                    Log.d(Constant.TAG, "Frame number : " + frameNumber + ", Optical 1 : " + opticalValueArray[0]
+                    + ", Found 1 : " + foundValueArray[0]);
+
+                    if(connected && sendMessageThread != null){
+                        /** 메시지 전송 */
+                    }
                 }
             }
             return true;
@@ -475,12 +426,13 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
             // nothing to do
         }
 
-        public void addMatToQueue(Mat prev, Mat curr){
+        public void addMatToQueue(Mat prev, Mat curr, int frameNumber){
             if(prev != null && curr != null) {
-                synchronized (matLock) {
-                    if(matQueue.isEmpty() == true) {
+                synchronized (mLock) {
+                    if(matQueue.isEmpty() == true && intQueue.isEmpty() == true) {
                         matQueue.offer(prev);
                         matQueue.offer(curr);
+                        intQueue.offer(frameNumber);
                     }else{
                         prev.release();
                         curr.release();
@@ -491,8 +443,8 @@ public class MainActivity extends Activity implements CameraBridgeViewBase.CvCam
 
         public boolean isReady(){
             boolean result;
-            synchronized (matLock){
-                result = matQueue.isEmpty();
+            synchronized (mLock){
+                result = (matQueue.isEmpty() && intQueue.isEmpty());
             }
             return result;
         }
